@@ -1,0 +1,45 @@
+service: Hana-Automation-ReportGen
+
+provider:
+  name: aws
+  runtime: python3.11
+  stage: staging
+  region: ap-southeast-1
+  iam:
+    role: "${ssm:/RescheduleCallFUnction/${sls:stage}/lambda/ROLE}"
+
+# package:
+#   individually: true
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    dockerizePip: true
+    zip: true
+
+functions:
+  ReportGeneratorfunction:
+    handler: ReportScript.main
+    description: Report_generator
+    # events:
+    #   - s3:
+    #       bucket: reschedule-call-bucket
+    #       event: s3:ObjectCreated:*
+    #       rules:
+    #         - prefix: /
+    #         - suffix: .xlsx
+
+    # package:
+    #   patterns:
+    #     - "!node_modules/**"
+    #     - "!yarn.lock"
+    #     - ".serverless"
+
+    environment:
+      TABLE_NAME: "${ssm:/Report_Generator/${sls:stage}/lambda/TABLE_NAME}"
+      TABLE_NAME_2: "${ssm:/Report_Generator/${sls:stage}/lambda/TABLE_NAME_2}"
+      BUCKET_NAME: "${ssm:/Report_Generator/${sls:stage}/lambda/BUCKET_NAME}"
+      REGION: "${ssm:/Report_Generator/${sls:stage}/lambda/REGION}"
+      VALUE: "${ssm:/Report_Generator/${sls:stage}/lambda/ROLE}"

@@ -1,0 +1,53 @@
+name: Serverless Deployment
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: Staging
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: "14" # Set the desired Node.js version
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: check for python version
+        run: |
+          python --version
+
+      - name: Install Serverless Framework
+        run: npm install -g serverless@latest
+
+      - name: Install Serverless Python Requirements
+        run: npm install --save serverless-python-requirements
+
+      - name: Check docker version
+        run: docker --version
+
+      - name: List all files in pwd
+        run: ls -la
+
+      - name: Deploy to AWS Lambda
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          sls deploy --stage staging
+
+#run
