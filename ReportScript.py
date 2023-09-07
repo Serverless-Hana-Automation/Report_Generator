@@ -6,10 +6,10 @@ from numpy import nan
 import os 
 
 
-TABLE_NAME= os.environ("TABLE_NAME")
-REGION= os.environ("REGION")
-BUCKET_NAME= os.environ("BUCKET_NAME")
-TABLE_NAME_2= os.environ("TABLE_NAME_2")
+TABLE_NAME= os.environ["TABLE_NAME"]
+REGION= os.environ["REGION"]
+BUCKET_NAME= os.environ["BUCKET_NAME"]
+TABLE_NAME_2= os.environ["TABLE_NAME_2"]
 
 dynamodb = boto3.client("dynamodb",region_name=REGION)
 

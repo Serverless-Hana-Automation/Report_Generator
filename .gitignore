@@ -2,3 +2,4 @@ venv_name/
 env/
 __pycache__/
 Report_Generator_Layer/
+ReportGeneratorLambdaLayer
