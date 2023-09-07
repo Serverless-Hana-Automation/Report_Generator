@@ -11,13 +11,13 @@ provider:
 # package:
 #   individually: true
 
-plugins:
-  - serverless-python-requirements
+# plugins:
+#   - serverless-python-requirements
 
-custom:
-  pythonRequirements:
-    dockerizePip: true
-    zip: true
+# custom:
+#   pythonRequirements:
+#     dockerizePip: true
+#     zip: true
 
 functions:
   ReportGeneratorfunction:
