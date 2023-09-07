@@ -16,7 +16,7 @@ s3 = boto3.client("s3",region_name= REGION)
 
 bucket_name = BUCKET_NAME
 object_key_1 = "unanswered/schedule_call.xlsx"
-object_key_2 = "unanswered/daily_report.xlsx"
+object_key_2 = "hana-daily-summary-report/daily_report.xlsx"
 
 def query_table(start_timestamp, end_timestamp):
   # QUERY ANSWERED CALLS
@@ -174,7 +174,7 @@ def classify_survey_rating(survey_rating):
         return "Not applicable"
     return [{key: value['S']} for ratings in survey_rating["L"] for key, value in ratings['M'].items()]
 
-def clean_data(df1, df2, df3):
+def clean_data(df1, df2):
   stages = ["NA",nan, 'T.1', 'F.1', '1.1', '1.2', '1.3', '2.1', '2.2', '2.3', '3.1', '3.2', '4.1', '4.2', '4.3', '5.1', '5.2', '5.3', '5.4', '5.5', '6.1']
   ranking_dict = {i: stages.index(i) for i in stages}
   df1.loc[:, "Stages_Reached"] = df1["Last Stage"].apply(lambda x: ranking_dict[x])
