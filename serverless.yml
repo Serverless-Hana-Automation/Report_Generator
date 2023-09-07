@@ -21,7 +21,7 @@ provider:
 
 functions:
   ReportGeneratorfunction:
-    handler: ReportScript.main
+    handler: main.main
     description: Report_generator
     # events:
     #   - s3:

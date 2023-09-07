@@ -6,17 +6,17 @@ from numpy import nan
 import os 
 
 
-TABLE_NAME= os.environ("TABLE_NAME")
-REGION= os.environ("REGION")
-BUCKET_NAME= os.environ("BUCKET_NAME")
-TABLE_NAME_2= os.environ("TABLE_NAME_2")
+TABLE_NAME= os.environ["TABLE_NAME"]
+REGION= os.environ["REGION"]
+BUCKET_NAME= os.environ["BUCKET_NAME"]
+TABLE_NAME_2= os.environ["TABLE_NAME_2"]
 
 dynamodb = boto3.client("dynamodb",region_name=REGION)
-
 s3 = boto3.client("s3",region_name= REGION)
 
 bucket_name = BUCKET_NAME
-object_key = "unanswered/schedule_call.xlsx"
+object_key_1 = "unanswered/schedule_call.xlsx"
+object_key_2 = "unanswered/daily_report.xlsx"
 
 def query_table(start_timestamp, end_timestamp):
   # QUERY ANSWERED CALLS
@@ -85,7 +85,6 @@ def query_table(start_timestamp, end_timestamp):
 
 
 def answered_calls(response_items):
-  unanswered_response_df = []
   answered_response_df = []
 
   for item in response_items:
@@ -97,7 +96,7 @@ def answered_calls(response_items):
     verification_status = classify_verification_status(item.get('Verification', []))
     policy_received = classify_policy_received(item.get('Policy_Received'))
     survey_rating = classify_survey_rating(item.get('Survey_Rating'))
-    hana_call_time = classify_hana_call_time(item.get('Trigger_Timestamp', {}).get('S', None))
+    hana_call_time = item.get('Trigger_Timestamp', {}).get('S', None)
     phone_number = dynamodb.query(
         TableName= TABLE_NAME_2,
         ExpressionAttributeValues={':pn' : {'S' : policy_number}},
@@ -106,30 +105,21 @@ def answered_calls(response_items):
       )
     phone_number = phone_number.get('Items')[0].get('Policyholder_Phone_Number', {}).get('S', '')
 
-    if last_stage == "T.1":
-      unanswered_response_df.append({
-          "Policy_Number": policy_number,
-          "Entity": entity,
-          "Phone_Number": phone_number,
-      })
-    else:
-      answered_response_df.append({
-          "Policy_Number": policy_number,
-          "Entity": entity,
-          "Phone_Number": phone_number,
-          "HANA Call Time": hana_call_time,
-          "Verification": verification_status,
-          "Policy Received": policy_received,
-          "Survey Rating": survey_rating,
-          "Last Stage": last_stage,
-      })
+    answered_response_df.append({
+        "Policy_Number": policy_number,
+        "Entity": entity,
+        "Phone_Number": phone_number,
+        "HANA Call Time": hana_call_time,
+        "Verification": verification_status,
+        "Policy Received": policy_received,
+        "Survey Rating": survey_rating,
+        "Last Stage": last_stage,
+    })
 
   # Create DataFrame from the list of items
-  answered_df1 = pd.DataFrame(answered_response_df)
-  unanswered_df1 = pd.DataFrame(unanswered_response_df)
-  # df1 = df1.drop_duplicates("Policy Number", )
+  answered_df = pd.DataFrame(answered_response_df)
 
-  return answered_df1, unanswered_df1
+  return answered_df
 
 
 def unanswered_calls(response_items):
@@ -166,12 +156,6 @@ def classify_entity(policy_number):
         return "LIA"
 
 
-def classify_hana_call_time(time_stamp):
-  parsed_datetime = datetime.strptime(time_stamp, "%Y-%m-%dT%H:%M:%S%z")
-  time_only = parsed_datetime.strftime("%H:%M")
-  return time_only
-
-
 def classify_verification_status(verification):
     if not verification:
         return "NA"
@@ -194,35 +178,34 @@ def clean_data(df1, df2, df3):
   stages = ["NA",nan, 'T.1', 'F.1', '1.1', '1.2', '1.3', '2.1', '2.2', '2.3', '3.1', '3.2', '4.1', '4.2', '4.3', '5.1', '5.2', '5.3', '5.4', '5.5', '6.1']
   ranking_dict = {i: stages.index(i) for i in stages}
   df1.loc[:, "Stages_Reached"] = df1["Last Stage"].apply(lambda x: ranking_dict[x])
-  df1 = df1.sort_values(by=["Stages_Reached"],ascending=False)
+  df1 = df1.sort_values(by=["HANA Call Time", "Stages_Reached"],ascending=False)
   df1 = df1.drop_duplicates(subset=["Policy_Number"],keep="first")
-  df1 = df1.sort_values(by=["HANA Call Time"],ascending=False)
 
-  concatenated_unanswered_df = pd.concat([df2, df3], axis=0)
+  filtered_df1 = df1[df1['Last Stage'] == 'T.1']
+  filtered_df1 = filtered_df1[['Policy_Number', 'Entity', 'Phone_Number']]
+  df1.drop(filtered_df1.index, inplace=True)
+
+  df1['HANA Call Time'] = pd.to_datetime(df1['HANA Call Time'])
+  df1['HANA Call Time'] = df1['HANA Call Time'].dt.strftime('%H:%M')
+
+  df1 = df1.sort_values(by=["HANA Call Time"],ascending=True)
+  df1 = df1.drop(columns=["Stages_Reached"],axis=1)
+
+  concatenated_unanswered_df = pd.concat([df2, filtered_df1], axis=0)
   filtered_unanswered = concatenated_unanswered_df[~concatenated_unanswered_df["Policy_Number"].isin(df1["Policy_Number"])]
   clean_unanswered = filtered_unanswered.drop_duplicates('Policy_Number')
 
-  clean_unanswered.to_excel("test_Report_Unanswered.xlsx", index=False)
-
-  # Create an Excel writer object
-  with pd.ExcelWriter('DailyReport.xlsx', engine='xlsxwriter') as writer:
-      # Write each dataframe to a separate sheet
+  # Write daily report to an Excel file
+  with pd.ExcelWriter('/tmp/DailyReport.xlsx', engine='xlsxwriter') as writer:
       df1.to_excel(writer, sheet_name='Answered_Calls', index=False)
       clean_unanswered.to_excel(writer, sheet_name='Unanswered_Calls', index=False)
 
+  #Create a file to schedule call
   schedule_call = clean_unanswered.drop(columns=["Entity"])
-  schedule_call.to_excel("schedule_call.xlsx", index=False)
+  schedule_call.to_excel("/tmp/schedule_call.xlsx", index=False)
 
-  #Upload unanswered file to s3 for scheduling
-  s3.upload_file("schedule_call.xlsx", bucket_name, object_key)
-  s3.upload_file('DailyReport.xlsx', bucket_name, object_key)
+  #Upload files to s3 for scheduling, and reporting
+  s3.upload_file("/tmp/schedule_call.xlsx", bucket_name, object_key_1)
+  s3.upload_file('/tmp/DailyReport.xlsx', bucket_name, object_key_2)
 
-  print(f'Uploaded to {bucket_name}/{object_key}')
-
-def main(event, context):
-  answered_records, unanswered_records = query_table(start_timestamp="2023-08-01T09:00:00+08:00", end_timestamp="2023-08-30T18:00:00+08:00")
-  answered_df1, unanswered_df1 = answered_calls(answered_records)
-  df2 = unanswered_calls(unanswered_records)
-  clean_data(answered_df1, df2, unanswered_df1)
-  
-  return "function has been executed"
+  print(f'Uploaded to {bucket_name}/{object_key_1} & {object_key_2}')
