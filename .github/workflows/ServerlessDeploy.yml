@@ -34,8 +34,8 @@ jobs:
       - name: Install Serverless Framework
         run: npm install -g serverless@latest
 
-      - name: Install Serverless Python Requirements
-        run: npm install --save serverless-python-requirements
+      # - name: Install Serverless Python Requirements
+      #   run: npm install --save serverless-python-requirements
 
       - name: Check docker version
         run: docker --version
