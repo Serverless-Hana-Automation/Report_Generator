@@ -16,7 +16,7 @@ s3 = boto3.client("s3",region_name= REGION)
 
 bucket_name = BUCKET_NAME
 object_key_1 = "unanswered/schedule_call.xlsx"
-object_key_2 = "unanswered/daily_report.xlsx"
+object_key_2 = "hana-daily-summary-report/daily_report.xlsx"
 
 def query_table(start_timestamp, end_timestamp):
   # QUERY ANSWERED CALLS
