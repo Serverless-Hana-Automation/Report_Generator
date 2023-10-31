@@ -29,7 +29,7 @@ def main (event,context):
     Date_2 = datetime.fromisoformat(Date_2_start_timestamp).strftime('%d-%m-%Y')
     Date_3 = datetime.fromisoformat(Date_3_start_timestamp).strftime('%d-%m-%Y')
 
-    current_date = datetime.now().date()
+    current_date = datetime.now().date().strftime('%d-%m-%Y')
 
     # Compare the current date with the extracted dates
     if current_date == Date_1:
