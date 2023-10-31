@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - Automation-31.10.2023
       - production
 
 jobs:
