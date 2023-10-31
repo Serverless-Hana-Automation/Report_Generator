@@ -17,12 +17,12 @@ s3_client = boto3.client("s3", region_name=REGION)
 def main (event,context):
 
     #To be set every campaign
-    Date_1_start_timestamp = "2023-10-10T09:00:00+08:00"
-    Date_1_end_timestamp ="2023-10-10T18:10:00+08:00"
-    Date_2_start_timestamp = "2023-10-11T09:00:00+08:00"
-    Date_2_end_timestamp = "2023-10-11T18:10:00+08:00"
-    Date_3_start_timestamp = "2023-10-12T09:00:00+08:00"
-    Date_3_end_timestamp = "2023-10-12T18:10:00+08:00"
+    Date_1_start_timestamp = "2023-10-31T09:00:00+08:00"
+    Date_1_end_timestamp ="2023-10-31T18:10:00+08:00"
+    Date_2_start_timestamp = "2023-11-01T09:00:00+08:00"
+    Date_2_end_timestamp = "2023-11-01T18:10:00+08:00"
+    Date_3_start_timestamp = "2023-11-02T09:00:00+08:00"
+    Date_3_end_timestamp = "2023-11-02T18:10:00+08:00"
 
     # Extract the date component from the timestamps
     Date_1 = datetime.fromisoformat(Date_1_start_timestamp).strftime('%d-%m-%Y')
