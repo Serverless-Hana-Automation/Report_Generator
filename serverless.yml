@@ -38,7 +38,7 @@ functions:
     #     - ".serverless"
 
     environment:
-      TABLE_NAME: "${ssm:/Report_Generator/${sls:stage}/lambda/TABLE_NAME}"
+      TABLE_NAME_1: "${ssm:/Report_Generator/${sls:stage}/lambda/TABLE_NAME_1}"
       TABLE_NAME_2: "${ssm:/Report_Generator/${sls:stage}/lambda/TABLE_NAME_2}"
       BUCKET_NAME: "${ssm:/Report_Generator/${sls:stage}/lambda/BUCKET_NAME}"
       REGION: "${ssm:/Report_Generator/${sls:stage}/lambda/REGION}"
