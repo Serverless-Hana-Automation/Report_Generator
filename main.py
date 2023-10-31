@@ -39,7 +39,7 @@ def main (event,context):
         Date_1_df1 = answered_calls(answered_records_1)
         Date_1_df2 = unanswered_calls(unanswered_records_1)
 
-        clean_data(db_resource, s3_client, Date_1_df1, Date_1_df2,Date_1,Date_2,Date_3,0)
+        clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, Date_1_df1, Date_1_df2,Date_1,Date_2,Date_3,0)
 
     elif current_date == Date_2:
         print("The current date matches Date 2")
@@ -47,7 +47,7 @@ def main (event,context):
         Date_2_df1 = answered_calls(answered_records_2)
         Date_2_df2 = unanswered_calls(unanswered_records_2)
 
-        clean_data(db_resource, s3_client, Date_2_df1, Date_2_df2,Date_1,Date_2,Date_3,2)
+        clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, Date_2_df1, Date_2_df2,Date_1,Date_2,Date_3,2)
 
     elif current_date == Date_3:
         print("The current date matches Date 3")
@@ -57,6 +57,6 @@ def main (event,context):
         Date_3_df1 =  answered_calls(answered_records_3)
         Date_3_df2 = unanswered_calls(unanswered_records_3)
 
-        clean_data(db_resource, s3_client, Date_3_df1, Date_3_df2,Date_1,Date_2,Date_3,4)
+        clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, Date_3_df1, Date_3_df2,Date_1,Date_2,Date_3,4)
     else:
         print("The current date does not match any of the provided dates.")
