@@ -19,12 +19,6 @@ provider:
 #     dockerizePip: true
 #     zip: true
 
-custom:
-  pythonRequirements:
-    usePoetry: false
-    dockerizePip: true
-    dockerFile: Dockerfile
-
 functions:
   ReportGeneratorfunction:
     handler: main.main
