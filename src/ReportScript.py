@@ -5,6 +5,7 @@ import pandas as pd
 from numpy import nan
 from io import BytesIO
 import pytz
+import pyminizip
 
 
 def query_table(db_client, TABLE_NAME_1, start_timestamp, end_timestamp):
@@ -186,7 +187,6 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
      current_date_str = date2
      tmr_str = date3
   else :
-     two_days_before_str = date1
      day_before_str = date2
      current_date_str = date3
      tmr_str = None
@@ -681,26 +681,29 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
               cell.fill = fill
 
 
-  new_object_key= f'Hana Call Summary Report/Hana Call Summary Full Report {current_date_str}.xlsx'
+  # Create a new dataframe for the workbook to be saved in
+  workbook_df = pd.DataFrame()
+  workbook_df.to_excel(f"/tmp/Hana Call Summary Full Report {current_date_str}.xlsx", index=False)
+  workbook.save(f'/tmp/Hana Call Summary Full Report {current_date_str}.xlsx')
 
-  # Save the modified workbook to a BytesIO object
-  modified_excel_bytes = BytesIO()
-  workbook.save(modified_excel_bytes)
-  modified_excel_bytes.seek(0)
+  input_file = f'/tmp/Hana Call Summary Full Report {current_date_str}.xlsx'
+  output_file = f'/tmp/Hana Call Summary Full Report {current_date_str}.zip'
+  password_date = datetime.now().date().strftime('%d%m%Y')
+  password = f"HANAETIQA{password_date}"
+  pyminizip.compress(input_file, None, output_file, password, 5)
 
-  # Upload the modified Excel file to S3 with the new path
-  s3_client.upload_fileobj(modified_excel_bytes, bucket_name, new_object_key)
+  new_object_key= f'Hana Call Summary Report/Hana Call Summary Full Report {current_date_str}.zip'
+
+  # Upload the locked zip file to S3
+  s3_client.upload_file(output_file, bucket_name, new_object_key)
 
   if tmr_str is not None:
     schedule_call = clean_unanswered.drop(columns=["Entity"])
-    sms_blast_date = current_date_str + timedelta(days=1)
-    SMS_object_key = f'Hana SMS Blast/SMS_Blast_{sms_blast_date}.xlsx'
-    excel_data = BytesIO()
-    with pd.ExcelWriter(excel_data, engine='xlsxwriter') as writer:
-       schedule_call.to_excel(writer, sheet_name='SMS-Blast', index=False)
-    # Reset the buffer position
-    excel_data.seek(0)
-    # Upload the modified Excel file to S3 with the new path
-    s3_client.upload_fileobj(excel_data, bucket_name, SMS_object_key)
-    # Close the Excel data buffer
-    excel_data.close()
+    schedule_call.to_excel("/tmp/SMS_Blast_"+tmr_str+".xlsx", index=False)
+    input_file = "/tmp/SMS_Blast_"+tmr_str+".xlsx"
+    output_file = "/tmp/SMS_Blast_"+tmr_str+".zip"
+    pyminizip.compress(input_file, None, output_file, password, 5)
+
+    SMS_object_key = f'Hana SMS Blast/SMS_Blast_{tmr_str}.zip'
+
+    s3_client.upload_file(output_file, bucket_name, SMS_object_key)
