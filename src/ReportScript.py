@@ -5,7 +5,7 @@ import pandas as pd
 from numpy import nan
 from io import BytesIO
 import pytz
-import pyminizip
+import subprocess
 
 
 def query_table(db_client, TABLE_NAME_1, start_timestamp, end_timestamp):
@@ -690,7 +690,28 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
   output_file = f'/tmp/Hana Call Summary Full Report {current_date_str}.zip'
   password_date = datetime.now().date().strftime('%d%m%Y')
   password = f"HANAETIQA{password_date}"
-  pyminizip.compress(input_file, None, output_file, password, 5)
+
+  # Define the path to the ZIP file you want to create
+  zip_file_path = output_file
+
+  # Define the list of files you want to include in the ZIP file
+  files_to_zip = [input_file]
+
+  # Create the command to create a password-protected ZIP file using the 'zip' utility
+  command = [
+      'zip',
+      '-P', password,    # Specify the password
+      zip_file_path,     # Path to the ZIP file to create
+  ] + files_to_zip       # List of files to include in the ZIP file
+
+  # Run the command using subprocess.Popen()
+  process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  stdout, stderr = process.communicate()
+
+  if process.returncode == 0:
+      print(f'ZIP file "{zip_file_path}" has been created with a password.')
+  else:
+      print(f'Error: {stderr.decode("utf-8")}')
 
   new_object_key= f'Hana Call Summary Report/Hana Call Summary Full Report {current_date_str}.zip'
 
@@ -702,7 +723,28 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
     schedule_call.to_excel("/tmp/SMS_Blast_"+tmr_str+".xlsx", index=False)
     input_file = "/tmp/SMS_Blast_"+tmr_str+".xlsx"
     output_file = "/tmp/SMS_Blast_"+tmr_str+".zip"
-    pyminizip.compress(input_file, None, output_file, password, 5)
+
+    # Define the path to the ZIP file you want to create
+    zip_file_path = output_file
+    
+    # Define the list of files you want to include in the ZIP file
+    files_to_zip = [input_file]
+    
+    # Create the command to create a password-protected ZIP file using the 'zip' utility
+    command = [
+        'zip',
+        '-P', password,    # Specify the password
+        zip_file_path,     # Path to the ZIP file to create
+    ] + files_to_zip       # List of files to include in the ZIP file
+    
+    # Run the command using subprocess.Popen()
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    
+    if process.returncode == 0:
+        print(f'ZIP file "{zip_file_path}" has been created with a password.')
+    else:
+        print(f'Error: {stderr.decode("utf-8")}')
 
     SMS_object_key = f'Hana SMS Blast/SMS_Blast_{tmr_str}.zip'
 
