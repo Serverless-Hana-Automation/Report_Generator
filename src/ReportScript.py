@@ -8,11 +8,11 @@ import pytz
 import subprocess
 
 
-def query_table(start_timestamp, end_timestamp):
+def query_table(db_client, TABLE_NAME_1, start_timestamp, end_timestamp):
   # QUERY ANSWERED CALLS
   answered_response_items = []
-  answered_response = dynamodb.query(
-      TableName="Agent_Trigger_Table_PreProd",
+  answered_response = db_client.query(
+      TableName=TABLE_NAME_1,
       IndexName="Call_Answered-index",
       ExpressionAttributeValues={
           ":ca": {"S": "True"},
@@ -26,8 +26,8 @@ def query_table(start_timestamp, end_timestamp):
 
   # Continue querying while paginated results exist
   while 'LastEvaluatedKey' in answered_response:
-      answered_response = dynamodb.query(
-          TableName="Agent_Trigger_Table_PreProd",
+      answered_response = db_client.query(
+          TableName=TABLE_NAME_1,
           IndexName="Call_Answered-index",
           ExpressionAttributeValues={
               ":ca": {"S": "True"},
@@ -42,8 +42,8 @@ def query_table(start_timestamp, end_timestamp):
 
   # QUERY UNANSWERED CALLS
   unanswered_response_items = []
-  unanswered_response = dynamodb.query(
-      TableName="Agent_Trigger_Table_PreProd",
+  unanswered_response = db_client.query(
+      TableName=TABLE_NAME_1,
       IndexName="Call_Answered-index",
       ExpressionAttributeValues={
           ":ca": {"S": "False"},
@@ -57,8 +57,8 @@ def query_table(start_timestamp, end_timestamp):
 
   # Continue querying while paginated results exist
   while 'LastEvaluatedKey' in unanswered_response:
-      unanswered_response = dynamodb.query(
-          TableName="Agent_Trigger_Table_PreProd",
+      unanswered_response = db_client.query(
+          TableName=TABLE_NAME_1,
           IndexName="Call_Answered-index",
           ExpressionAttributeValues={
               ":ca": {"S": "False"},
@@ -152,7 +152,7 @@ def classify_survey_rating(survey_rating):
         return "Not applicable"
     return [{key: value['S']} for ratings in survey_rating["L"] for key, value in ratings['M'].items()]
 
-def clean_data(df1, df2,date_1,date_2,date_3,times):
+def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_1,date_2,date_3,times):
   stages = ["NA",nan, 'T.1', 'F.1', '1.1', '1.2', '1.3', '2.1', '2.2', '2.3', '3.1', '3.2', '4.1', '4.2', '4.3', '5.1', '5.2', '5.3', '5.4', '5.5', '6.1']
   ranking_dict = {i: stages.index(i) for i in stages}
   df1.loc[:, "Stages_Reached"] = df1["Last Stage"].apply(lambda x: ranking_dict[x])
@@ -173,13 +173,6 @@ def clean_data(df1, df2,date_1,date_2,date_3,times):
   filtered_unanswered = concatenated_unanswered_df[~concatenated_unanswered_df["Policy_Number"].isin(df1["Policy_Number"])]
   clean_unanswered = filtered_unanswered.drop_duplicates('Policy_Number')
 
-  # Load the existing Excel file
-  import boto3
-  from boto3.dynamodb.conditions import Key
-  import pytz
-  from datetime import datetime, timedelta
-  import openpyxl
-
   date1 = date_1.split("T")[0]
   date2 =date_2.split("T")[0]
   date3 = date_3.split("T")[0]
@@ -198,16 +191,8 @@ def clean_data(df1, df2,date_1,date_2,date_3,times):
      current_date_str = date3
      tmr_str = None
 
-
-  access_key_2='AKIA3FVKTXJVVWLZLMVU'
-  secret_access_key_2='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'
-
-  # Initialize the S3 client
-  s3_test = boto3.client("s3", aws_access_key_id=access_key_2, aws_secret_access_key=secret_access_key_2, region_name="ap-southeast-1")
-
-
-  # Specify the bucket name and the object (file) key
-  bucket_name = 'reportgeneratortest'
+    # Specify the bucket name and the object (file) key
+  bucket_name = BUCKET_NAME
   if times==0:
     object_key = 'Hana Call Summary template/Hana Call Summary Full Report-Template.xlsx'
   elif times==2:
@@ -216,7 +201,7 @@ def clean_data(df1, df2,date_1,date_2,date_3,times):
     object_key = f'Hana Call Summary Report/Hana Call Summary Full Report {day_before_str}.xlsx'
 
   # Download the Excel file into memory as bytes
-  response = s3_test.get_object(Bucket=bucket_name, Key=object_key)
+  response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
 
   excel_bytes = response['Body'].read()
   workbook = openpyxl.load_workbook(BytesIO(excel_bytes))
@@ -227,11 +212,9 @@ def clean_data(df1, df2,date_1,date_2,date_3,times):
       last_sheet_name = sheet_names[-1]
       workbook.remove(workbook[last_sheet_name])
 
-  # Create a DynamoDB resource with your credentials
-  dynamodbrs = boto3.resource("dynamodb", aws_access_key_id=access_key, aws_secret_access_key=secret_access_key, region_name="ap-southeast-1")
-
   # Define the table for resource
-  table = dynamodbrs.Table("Temp_Customer_Call_Schedule_Table")
+  table = db_resource.Table(TABLE_NAME_2)
+
   if tmr_str is not None:
     try:
         tmr_str_reschedule = datetime.strptime(tmr_str, '%d-%m-%Y')
@@ -429,7 +412,7 @@ def clean_data(df1, df2,date_1,date_2,date_3,times):
   # Set content in the merged cell
   sheet[start_cell_3] = "HANA Outbound Call Answered Summary - "+day_of_week+" , "+current_date_str
 
-  # Apply formatting to the merged cell
+ # Apply formatting to the merged cell
   fill = PatternFill(start_color="ffdc64", end_color="ffdc64", fill_type="solid")
   font = Font(bold=True,underline="single")  # Bold and gold color
   alignment = Alignment(horizontal="center", vertical="center")
