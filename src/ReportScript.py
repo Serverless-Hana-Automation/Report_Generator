@@ -8,11 +8,11 @@ import pytz
 import subprocess
 
 
-def query_table(db_client, TABLE_NAME_1, start_timestamp, end_timestamp):
+def query_table(start_timestamp, end_timestamp):
   # QUERY ANSWERED CALLS
   answered_response_items = []
-  answered_response = db_client.query(
-      TableName=TABLE_NAME_1,
+  answered_response = dynamodb.query(
+      TableName="Agent_Trigger_Table_PreProd",
       IndexName="Call_Answered-index",
       ExpressionAttributeValues={
           ":ca": {"S": "True"},
@@ -26,8 +26,8 @@ def query_table(db_client, TABLE_NAME_1, start_timestamp, end_timestamp):
 
   # Continue querying while paginated results exist
   while 'LastEvaluatedKey' in answered_response:
-      answered_response = db_client.query(
-          TableName=TABLE_NAME_1,
+      answered_response = dynamodb.query(
+          TableName="Agent_Trigger_Table_PreProd",
           IndexName="Call_Answered-index",
           ExpressionAttributeValues={
               ":ca": {"S": "True"},
@@ -42,8 +42,8 @@ def query_table(db_client, TABLE_NAME_1, start_timestamp, end_timestamp):
 
   # QUERY UNANSWERED CALLS
   unanswered_response_items = []
-  unanswered_response = db_client.query(
-      TableName=TABLE_NAME_1,
+  unanswered_response = dynamodb.query(
+      TableName="Agent_Trigger_Table_PreProd",
       IndexName="Call_Answered-index",
       ExpressionAttributeValues={
           ":ca": {"S": "False"},
@@ -57,8 +57,8 @@ def query_table(db_client, TABLE_NAME_1, start_timestamp, end_timestamp):
 
   # Continue querying while paginated results exist
   while 'LastEvaluatedKey' in unanswered_response:
-      unanswered_response = db_client.query(
-          TableName=TABLE_NAME_1,
+      unanswered_response = dynamodb.query(
+          TableName="Agent_Trigger_Table_PreProd",
           IndexName="Call_Answered-index",
           ExpressionAttributeValues={
               ":ca": {"S": "False"},
@@ -152,7 +152,7 @@ def classify_survey_rating(survey_rating):
         return "Not applicable"
     return [{key: value['S']} for ratings in survey_rating["L"] for key, value in ratings['M'].items()]
 
-def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_1,date_2,date_3,times):
+def clean_data(df1, df2,date_1,date_2,date_3,times):
   stages = ["NA",nan, 'T.1', 'F.1', '1.1', '1.2', '1.3', '2.1', '2.2', '2.3', '3.1', '3.2', '4.1', '4.2', '4.3', '5.1', '5.2', '5.3', '5.4', '5.5', '6.1']
   ranking_dict = {i: stages.index(i) for i in stages}
   df1.loc[:, "Stages_Reached"] = df1["Last Stage"].apply(lambda x: ranking_dict[x])
@@ -173,6 +173,13 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
   filtered_unanswered = concatenated_unanswered_df[~concatenated_unanswered_df["Policy_Number"].isin(df1["Policy_Number"])]
   clean_unanswered = filtered_unanswered.drop_duplicates('Policy_Number')
 
+  # Load the existing Excel file
+  import boto3
+  from boto3.dynamodb.conditions import Key
+  import pytz
+  from datetime import datetime, timedelta
+  import openpyxl
+
   date1 = date_1.split("T")[0]
   date2 =date_2.split("T")[0]
   date3 = date_3.split("T")[0]
@@ -191,8 +198,16 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
      current_date_str = date3
      tmr_str = None
 
-    # Specify the bucket name and the object (file) key
-  bucket_name = BUCKET_NAME
+
+  access_key_2='AKIA3FVKTXJVVWLZLMVU'
+  secret_access_key_2='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'
+
+  # Initialize the S3 client
+  s3_test = boto3.client("s3", aws_access_key_id=access_key_2, aws_secret_access_key=secret_access_key_2, region_name="ap-southeast-1")
+
+
+  # Specify the bucket name and the object (file) key
+  bucket_name = 'reportgeneratortest'
   if times==0:
     object_key = 'Hana Call Summary template/Hana Call Summary Full Report-Template.xlsx'
   elif times==2:
@@ -201,7 +216,7 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
     object_key = f'Hana Call Summary Report/Hana Call Summary Full Report {day_before_str}.xlsx'
 
   # Download the Excel file into memory as bytes
-  response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+  response = s3_test.get_object(Bucket=bucket_name, Key=object_key)
 
   excel_bytes = response['Body'].read()
   workbook = openpyxl.load_workbook(BytesIO(excel_bytes))
@@ -212,32 +227,42 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
       last_sheet_name = sheet_names[-1]
       workbook.remove(workbook[last_sheet_name])
 
+  # Create a DynamoDB resource with your credentials
+  dynamodbrs = boto3.resource("dynamodb", aws_access_key_id=access_key, aws_secret_access_key=secret_access_key, region_name="ap-southeast-1")
+
   # Define the table for resource
-  table = db_resource.Table(TABLE_NAME_2)
+  table = dynamodbrs.Table("Temp_Customer_Call_Schedule_Table")
+  if tmr_str is not None:
+    try:
+        tmr_str_reschedule = datetime.strptime(tmr_str, '%d-%m-%Y')
+        formatted_date = tmr_str_reschedule.strftime('%Y-%m-%d')
 
-  try:
-      # Get today's date in the desired format
-      today_date = datetime.now(pytz.timezone('Asia/Singapore')).strftime('%Y-%m-%d')
+        # Get the current date and time in the 'Asia/Singapore' timezone
+        tz = pytz.timezone('Asia/Singapore')
+        current_datetime = datetime.now(tz)
 
-      # Scan the table  items with matching Schedule_ID and today's date
-      response = table.scan(
-        FilterExpression="Schedule_ID = :schedule_id and begins_with(Schedule_Call_Timestamp, :date) and (begins_with(Policy_Number, :policy_cr) or begins_with(Policy_Number, :policy_ir))",
-        ExpressionAttributeValues={":schedule_id": "Rescheduled", ":date": today_date, ":policy_cr": "CR", ":policy_ir": "IR"}
-    )
+        # Calculate tomorrow's date
+        tomorrow = current_datetime + timedelta(days=1)
 
-      count_rereschedule_call_lia = response['Count']
+        # Scan the table  items with matching Schedule_ID and today's date
+        response = table.scan(
+          FilterExpression="Schedule_ID = :schedule_id and begins_with(Schedule_Call_Timestamp, :date) and (begins_with(Policy_Number, :policy_cr) or begins_with(Policy_Number, :policy_ir))",
+          ExpressionAttributeValues={":schedule_id": "Rescheduled", ":date": formatted_date, ":policy_cr": "CR", ":policy_ir": "IR"}
+      )
 
-      # Scan the table items with matching Schedule_ID and today's date
-      response = table.scan(
-        FilterExpression="Schedule_ID = :schedule_id and begins_with(Schedule_Call_Timestamp, :date) and (begins_with(Policy_Number, :policy_lr) or begins_with(Policy_Number, :policy_tr))",
-        ExpressionAttributeValues={":schedule_id": "Rescheduled", ":date": today_date, ":policy_lr": "LR", ":policy_tr": "TR"}
-    )
+        count_rereschedule_call_lia = response['Count']
+
+        # Scan the table items with matching Schedule_ID and today's date
+        response = table.scan(
+          FilterExpression="Schedule_ID = :schedule_id and begins_with(Schedule_Call_Timestamp, :date) and (begins_with(Policy_Number, :policy_lr) or begins_with(Policy_Number, :policy_tr))",
+          ExpressionAttributeValues={":schedule_id": "Rescheduled", ":date": formatted_date, ":policy_lr": "LR", ":policy_tr": "TR"}
+      )
 
 
-      count_rereschedule_call_fta = response['Count']
+        count_rereschedule_call_fta = response['Count']
 
-  except Exception as e:
-      print(f"An error occurred: {str(e)}")
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
 
   count_ofta_answered = df1["Entity"].value_counts().get("FTA", 0)
   count_olia_answered = df1["Entity"].value_counts().get("LIA", 0)
@@ -263,8 +288,12 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
 
     cell = sheet_first['E6']
     cell.value = total_call_ofta
+
     cell = sheet_first['E7']
+    cell.value = '0'
+    cell = sheet_first['E23']
     cell.value = count_rereschedule_call_fta
+
     cell = sheet_first['E8']
     cell.value = count_ofta_answered
     cell = sheet_first['E9']
@@ -272,8 +301,12 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
 
     cell = sheet_first['E10']
     cell.value = total_call_olia
+
     cell = sheet_first['E11']
+    cell.value = '0'
+    cell = sheet_first['E27']
     cell.value = count_rereschedule_call_lia
+
     cell = sheet_first['E12']
     cell.value = count_olia_answered
     cell = sheet_first['E13']
@@ -289,15 +322,12 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
     cell = sheet_first['B20']
     cell.value = tmr_str
 
-    cell = sheet_first['E23']
-    cell.value = "Will be updated "+tmr_str
+
     cell = sheet_first['E24']
     cell.value = "Will be updated "+tmr_str
     cell = sheet_first['E25']
     cell.value = "Will be updated "+tmr_str
 
-    cell = sheet_first['E27']
-    cell.value = "Will be updated "+tmr_str
     cell = sheet_first['E28']
     cell.value = "Will be updated "+tmr_str
     cell = sheet_first['E29']
@@ -309,7 +339,7 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
     cell = sheet_first['E36']
     cell.value = "Will be updated "+tmr_str
     cell = sheet_first['E40']
-    cell.value =  "Will be updated "+two_days_after_str
+    cell.value =  "Will be updated "+tmr_str
     cell = sheet_first['E41']
     cell.value =  "Will be updated "+two_days_after_str
     cell = sheet_first['E42']
@@ -319,7 +349,7 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
     cell = sheet_first['E43']
     cell.value =  "Will be updated "+tmr_str
     cell = sheet_first['E44']
-    cell.value =  "Will be updated "+two_days_after_str
+    cell.value =  "Will be updated "+tmr_str
     cell = sheet_first['E45']
     cell.value =  "Will be updated "+two_days_after_str
     cell = sheet_first['E46']
@@ -327,15 +357,17 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
 
   elif times == 2 :
 
-    cell = sheet_first['E23']
+    cell = sheet_first['E40']
     cell.value = count_rereschedule_call_fta
+
     cell = sheet_first['E24']
     cell.value = count_ofta_answered
     cell = sheet_first['E25']
     cell.value = count_ofta_unanswered
 
-    cell = sheet_first['E27']
+    cell = sheet_first['E44']
     cell.value = count_rereschedule_call_lia
+
     cell = sheet_first['E28']
     cell.value = count_olia_answered
     cell = sheet_first['E29']
@@ -348,16 +380,14 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
 
     #table 3
 
-    cell = sheet_first['E40']
-    cell.value =  "Will be updated "+tmr_str
+
     cell = sheet_first['E41']
     cell.value =  "Will be updated "+tmr_str
     cell = sheet_first['E42']
     cell.value =  "Will be updated "+tmr_str
 
 
-    cell = sheet_first['E44']
-    cell.value =  "Will be updated "+tmr_str
+
     cell = sheet_first['E45']
     cell.value =  "Will be updated "+tmr_str
     cell = sheet_first['E46']
@@ -365,15 +395,13 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
 
   else:
 
-    cell = sheet_first['E40']
-    cell.value = count_rereschedule_call_fta
+
     cell = sheet_first['E41']
     cell.value = count_ofta_answered
     cell = sheet_first['E42']
     cell.value = count_ofta_unanswered
 
-    cell = sheet_first['E44']
-    cell.value = count_rereschedule_call_lia
+
     cell = sheet_first['E45']
     cell.value = count_olia_answered
     cell = sheet_first['E46']
@@ -381,8 +409,8 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
 
 
   # Create two new sheets
-  workbook.create_sheet(title="Call Summary Run "+current_date_str)
-  workbook.create_sheet(title="Unanswered "+current_date_str)
+  new_sheet1 = workbook.create_sheet(title="Call Summary Run "+current_date_str)
+  new_sheet2 = workbook.create_sheet(title="Unanswered "+current_date_str)
 
   #modify the call summary run
   sheet = workbook["Call Summary Run "+current_date_str]
