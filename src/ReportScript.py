@@ -727,6 +727,7 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
   new_object_key= f'Hana Call Summary Report/Hana Call Summary Full Report {current_date_str}.zip'
 
   # Upload the locked zip file to S3
+  s3_client.upload_file(input_file, bucket_name, new_object_key)
   s3_client.upload_file(output_file, bucket_name, new_object_key)
 
   if tmr_str is not None:
