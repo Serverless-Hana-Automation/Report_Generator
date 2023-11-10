@@ -1,4 +1,4 @@
-service: Hana-Automation
+service: Report-Automation
 
 provider:
   name: aws
