@@ -9,3 +9,4 @@ yarg==0.1.9
 numpy==1.25.2
 pandas==2.1.0
 zope.interface==6.0
+pyminizip==0.2.6
