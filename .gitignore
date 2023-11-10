@@ -3,3 +3,6 @@ env/
 __pycache__/
 Report_Generator_Layer/
 ReportGeneratorLambdaLayer
+myenv/
+env/
+__pycache__/

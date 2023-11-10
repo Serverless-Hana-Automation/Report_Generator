@@ -1,4 +1,4 @@
-service: Hana-Automation-ReportGen
+service: Report-Automation
 
 provider:
   name: aws
@@ -31,14 +31,14 @@ functions:
     #         - prefix: /
     #         - suffix: .xlsx
 
-    # package:
-    #   patterns:
-    #     - "!node_modules/**"
-    #     - "!yarn.lock"
-    #     - ".serverless"
+    package:
+      patterns:
+        - "!node_modules/**"
+        - "!yarn.lock"
+        - ".serverless"
 
     environment:
-      TABLE_NAME: "${ssm:/Report_Generator/${sls:stage}/lambda/TABLE_NAME}"
+      TABLE_NAME_1: "${ssm:/Report_Generator/${sls:stage}/lambda/TABLE_NAME_1}"
       TABLE_NAME_2: "${ssm:/Report_Generator/${sls:stage}/lambda/TABLE_NAME_2}"
       BUCKET_NAME: "${ssm:/Report_Generator/${sls:stage}/lambda/BUCKET_NAME}"
       REGION: "${ssm:/Report_Generator/${sls:stage}/lambda/REGION}"
