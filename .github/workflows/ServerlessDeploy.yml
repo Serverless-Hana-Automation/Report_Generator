@@ -51,6 +51,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           sls deploy --stage staging
+          #sls remove
 
   deploy_production:
     if: github.ref == 'refs/heads/production'
