@@ -6,6 +6,7 @@ from numpy import nan
 from io import BytesIO
 import pytz
 import subprocess
+import os
 
 
 def query_table(db_client, TABLE_NAME_1, start_timestamp, end_timestamp):
@@ -246,6 +247,8 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
 
     except Exception as e:
         print(f"An error occurred: {str(e)}")
+        count_rereschedule_call_fta = 0
+        count_rereschedule_call_lia = 0
 
   count_ofta_answered = df1["Entity"].value_counts().get("FTA", 0)
   count_olia_answered = df1["Entity"].value_counts().get("LIA", 0)
@@ -701,62 +704,63 @@ def clean_data(db_resource, TABLE_NAME_2, BUCKET_NAME, s3_client, df1, df2,date_
   output_file = f'/tmp/Hana Call Summary Full Report {current_date_str}.zip'
   password_date = datetime.now().date().strftime('%d%m%Y')
   password = f"HANAETIQA{password_date}"
-
-  # Define the path to the ZIP file you want to create
-  zip_file_path = output_file
-
-  # Define the list of files you want to include in the ZIP file
-  files_to_zip = [input_file]
-
-  # Create the command to create a password-protected ZIP file using the 'zip' utility
-  command = [
-      'zip',
-      '-P', password,    # Specify the password
-      zip_file_path,     # Path to the ZIP file to create
-  ] + files_to_zip       # List of files to include in the ZIP file
-
-  # Run the command using subprocess.Popen()
-  process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-  stdout, stderr = process.communicate()
-
-  if process.returncode == 0:
-      print(f'ZIP file "{zip_file_path}" has been created with a password.')
+  
+  # Check if the input file exists
+  if os.path.exists(input_file):
+      try:
+          result = subprocess.run(['/opt/bin/7za', 'a', '-p' + password, '-y', output_file, input_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+          
+          stdout = result.stdout.decode()
+          stderr = result.stderr.decode()
+          
+          print(stdout)
+          print(stderr)
+  
+      except subprocess.CalledProcessError as e:
+          print(f"An error occurred: {str(e)}")
   else:
-      print(f'Error: {stderr.decode("utf-8")}')
+      print(f"Input file '{input_file}' does not exist.")
 
-  new_object_key= f'Hana Call Summary Report/Hana Call Summary Full Report {current_date_str}.zip'
-
+  new_object_key_excel = f'Hana Call Summary Report/Hana Call Summary Full Report {current_date_str}.xlsx'
+  new_object_key_zip = f'Hana Call Summary Report/Hana Call Summary Full Report {current_date_str}.zip'
+  
+  if os.path.exists(output_file):
+    print(f"Output file '{output_file}' successfully created.")
+  
+  else:
+    print(f"Output file '{output_file}' does not exist.")
+    
+    
   # Upload the locked zip file to S3
-  s3_client.upload_file(input_file, bucket_name, new_object_key)
-  s3_client.upload_file(output_file, bucket_name, new_object_key)
+  s3_client.upload_file(input_file, bucket_name, new_object_key_excel)
+  s3_client.upload_file(output_file, bucket_name, new_object_key_zip)
 
   if tmr_str is not None:
     schedule_call = clean_unanswered.drop(columns=["Entity"])
     schedule_call.to_excel("/tmp/SMS_Blast_"+tmr_str+".xlsx", index=False)
     input_file = "/tmp/SMS_Blast_"+tmr_str+".xlsx"
     output_file = "/tmp/SMS_Blast_"+tmr_str+".zip"
-
-    # Define the path to the ZIP file you want to create
-    zip_file_path = output_file
     
-    # Define the list of files you want to include in the ZIP file
-    files_to_zip = [input_file]
-    
-    # Create the command to create a password-protected ZIP file using the 'zip' utility
-    command = [
-        'zip',
-        '-P', password,    # Specify the password
-        zip_file_path,     # Path to the ZIP file to create
-    ] + files_to_zip       # List of files to include in the ZIP file
-    
-    # Run the command using subprocess.Popen()
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    
-    if process.returncode == 0:
-        print(f'ZIP file "{zip_file_path}" has been created with a password.')
+    if os.path.exists(input_file):
+      try:
+          result = subprocess.run(['/opt/bin/7za', 'a', '-p' + password, '-y', output_file, input_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+          
+          stdout = result.stdout.decode()
+          stderr = result.stderr.decode()
+          
+          print(stdout)
+          print(stderr)
+  
+      except subprocess.CalledProcessError as e:
+          print(f"An error occurred: {str(e)}")
     else:
-        print(f'Error: {stderr.decode("utf-8")}')
+      print(f"Input file '{input_file}' does not exist.")
+  
+    if os.path.exists(output_file):
+      print(f"SMS BLAST zip file '{output_file}' successfully created.")
+    
+    else:
+      print(f"SMS BLAST zip file '{output_file}' does not exist.")
 
     SMS_object_key = f'Hana SMS Blast/SMS_Blast_{tmr_str}.zip'
 
